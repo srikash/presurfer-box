@@ -12,14 +12,13 @@ Note:
 
 from __future__ import annotations
 
-import argparse
 import gzip
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
+import click
 
 IMAGE = "ghcr.io/spm/spm-docker:docker-matlab-25.01.02"
 SINGULARITY_IMAGE = "spm-docker_singularity-matlab-25.01.02.sif"
@@ -425,37 +424,82 @@ def spm_seg(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docke
     return run_segmentation(Path(input_file), "UNI", image, runtime)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    images = parser.add_mutually_exclusive_group()
-    images.add_argument("--image", help="Docker image tag (Docker is the default runtime)")
-    images.add_argument("--sif", type=Path, help="Singularity/Apptainer SIF file")
-    commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("presurf_biascorrect", "presurf_UNI", "presurf_INV2"):
-        item = commands.add_parser(name)
-        item.add_argument("input", type=Path)
-    item = commands.add_parser("presurf_MPRAGEise")
-    item.add_argument("inv2", type=Path)
-    item.add_argument("uni", type=Path)
-    args = parser.parse_args()
-    runtime = "singularity" if args.sif else "docker"
-    image = str(args.sif) if args.sif else (args.image or IMAGE)
+def _run_command(ctx: click.Context, operation: object, *args: Path) -> None:
+    """Run a public workflow and translate its errors for the Click CLI.
+
+    Args:
+        ctx: Click context containing runtime configuration.
+        operation: Public workflow function to call.
+        *args: NIfTI input paths accepted by the workflow.
+
+    Raises:
+        click.ClickException: If the workflow fails before producing output.
+    """
     try:
-        if args.command == "presurf_MPRAGEise":
-            output = spm_mprageise(args.inv2, args.uni, image=image, runtime=runtime)
-        else:
-            operation = {
-                "presurf_biascorrect": spm_biascorrect,
-                "presurf_INV2": spm_stripmask,
-                "presurf_UNI": spm_seg,
-            }[args.command]
-            output = operation(args.input, image=image, runtime=runtime)
-        print(output)
-        return 0
+        output = operation(*args, **ctx.obj)
     except (RuntimeError, OSError, subprocess.SubprocessError) as error:
-        print(f"presurfer-box: {error}", file=sys.stderr)
-        return 1
+        raise click.ClickException(str(error)) from error
+    click.echo(str(output))
+
+
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.option("--image", help="Docker image tag. Docker is the default runtime.")
+@click.option(
+    "--sif",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Singularity or Apptainer SIF file.",
+)
+@click.pass_context
+def main(ctx: click.Context, image: str | None, sif: Path | None) -> None:
+    """Run MATLAB-free presurfer workflows through SPM Standalone.
+
+    Args:
+        ctx: Click context used to pass selected runtime configuration.
+        image: Optional Docker image tag.
+        sif: Optional local Singularity or Apptainer SIF path.
+
+    Raises:
+        click.UsageError: If Docker and SIF image options are combined.
+    """
+    if image and sif:
+        raise click.UsageError("Use either --image or --sif, not both.")
+    ctx.ensure_object(dict)
+    ctx.obj["image"] = str(sif) if sif else (image or IMAGE)
+    ctx.obj["runtime"] = "singularity" if sif else "docker"
+
+
+@main.command(name="presurf_biascorrect")
+@click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.pass_context
+def presurf_biascorrect(ctx: click.Context, input_file: Path) -> None:
+    """Run SPM bias correction on INPUT_FILE."""
+    _run_command(ctx, spm_biascorrect, input_file)
+
+
+@main.command(name="presurf_MPRAGEise")
+@click.argument("inv2_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("uni_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.pass_context
+def presurf_mprageise(ctx: click.Context, inv2_file: Path, uni_file: Path) -> None:
+    """Create a MPRAGEised UNI image from INV2_FILE and UNI_FILE."""
+    _run_command(ctx, spm_mprageise, inv2_file, uni_file)
+
+
+@main.command(name="presurf_INV2")
+@click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.pass_context
+def presurf_inv2(ctx: click.Context, input_file: Path) -> None:
+    """Generate an INV2-derived strip mask from INPUT_FILE."""
+    _run_command(ctx, spm_stripmask, input_file)
+
+
+@main.command(name="presurf_UNI")
+@click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.pass_context
+def presurf_uni(ctx: click.Context, input_file: Path) -> None:
+    """Generate UNI segmentation, brain-mask, and WM-mask outputs."""
+    _run_command(ctx, spm_seg, input_file)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

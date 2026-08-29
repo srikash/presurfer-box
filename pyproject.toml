@@ -7,7 +7,7 @@ name = "presurfer"
 version = "0.1.0"
 description = "MATLAB-free presurfer modules using SPM Standalone in Docker"
 requires-python = ">=3.10"
-dependencies = ["nibabel>=5.0", "numpy>=1.24"]
+dependencies = ["click>=8.1", "nibabel>=5.0", "numpy>=1.24"]
 
 [project.scripts]
 presurfer-box = "scripts.presurfer_box:main"
