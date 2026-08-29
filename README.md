@@ -72,6 +72,17 @@ the original `mat2gray(INV2) .* UNI` calculation, but it also needs validation
 on representative data.
 
 ## Example
+
+### Legacy MATLAB functions
+
+The original MATLAB implementation is retained under `src/presurfer-matlab`.
+Before using the examples below with MATLAB, add its function directory to the
+MATLAB path:
+
+```matlab
+addpath('src/presurfer-matlab/func')
+```
+
 ### Step-0 : MPRAGEise UNI
 Run `presurf_MPRAGEise` <br>
 
