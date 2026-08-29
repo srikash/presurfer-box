@@ -91,7 +91,9 @@ workflow creates an uncompressed working copy in its output directory.
 
 ## Legacy MATLAB implementation
 
-The original MATLAB implementation remains available as a pinned Git submodule:
+The original MATLAB implementation lives in
+[srikash/presurfer](https://github.com/srikash/presurfer) and remains available
+here as a pinned Git submodule:
 
 ```text
 src/matlab/presurfer
