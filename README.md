@@ -1,4 +1,4 @@
-# presurfer-box [![DOI](https://zenodo.org/badge/307506444.svg)](https://zenodo.org/badge/latestdoi/307506444)
+# presurfer-box [![DOI](https://zenodo.org/badge/1350566808.svg)](https://doi.org/10.5281/zenodo.22163094)
 
 ## MATLAB-free execution
 
