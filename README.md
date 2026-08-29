@@ -12,11 +12,19 @@ and retains the original MATLAB implementation as a Git submodule.
 
 ## Install
 
+Clone the repository and its pinned legacy MATLAB submodule:
+
+```bash
+git clone --recurse-submodules https://github.com/srikash/presurfer-box.git
+cd presurfer-box
+```
+
 ### Docker
 
 ```bash
 docker pull ghcr.io/spm/spm-docker:docker-matlab-25.01.02
 python3 -m pip install .
+presurfer-box --check
 ```
 
 ### Singularity / Apptainer
@@ -26,6 +34,7 @@ singularity pull --name spm.sif \
   oras://ghcr.io/spm/spm-docker:singularity-matlab-25.01.02
 
 python3 -m pip install .
+presurfer-box --sif spm.sif --check
 ```
 
 ## Quick start

@@ -137,6 +137,57 @@ def container_command(mount_root: Path, job_file: Path, image: str, runtime: str
     fail(f"Unsupported runtime: {runtime}. Use 'docker' or 'singularity'.")
 
 
+def check_container(image: str, runtime: str) -> str:
+    """Check that a selected SPM container can start and report its version.
+
+    Args:
+        image: Docker image tag or local Singularity image path.
+        runtime: ``"docker"`` or ``"singularity"``.
+
+    Returns:
+        Human-readable runtime, image, and SPM version information.
+
+    Raises:
+        RuntimeError: If the runtime or image is unavailable, or SPM cannot
+            start inside the selected container.
+    """
+    if runtime == "docker":
+        if shutil.which("docker") is None:
+            fail("Docker was not found on PATH. Install Docker, then pull the SPM image.")
+        inspect = subprocess.run(
+            ["docker", "image", "inspect", image],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if inspect.returncode:
+            fail(f"SPM image is not available locally: {image}\nPull it first: docker pull {image}")
+        command = ["docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}", image, "--version"]
+        label = "Docker image"
+    elif runtime == "singularity":
+        executable = shutil.which("singularity") or shutil.which("apptainer")
+        if executable is None:
+            fail("Neither Singularity nor Apptainer was found on PATH.")
+        if not Path(image).is_file():
+            fail(
+                f"Singularity image does not exist: {image}\n"
+                "Pull it first: singularity pull --name "
+                f"{SINGULARITY_IMAGE} oras://ghcr.io/spm/spm-docker:singularity-matlab-25.01.02"
+            )
+        command = [executable, "exec", image, "--version"]
+        label = f"{Path(executable).name.capitalize()} image"
+    else:
+        fail(f"Unsupported runtime: {runtime}. Use 'docker' or 'singularity'.")
+
+    result = subprocess.run(command, check=False, text=True, capture_output=True)
+    if result.returncode:
+        detail = result.stderr.strip() or result.stdout.strip()
+        message = f"SPM container check failed (exit status {result.returncode})."
+        fail(f"{message}\n{detail}" if detail else message)
+    version = result.stdout.strip()
+    return f"Runtime: {runtime}\n{label}: {image}\nSPM version:\n{version}"
+
+
 def run_spm_batch(mount_root: Path, job_file: Path, image: str, runtime: str) -> None:
     """Run a generated SPM batch in the selected container runtime.
 
@@ -442,21 +493,26 @@ def _run_command(ctx: click.Context, operation: object, *args: Path) -> None:
     click.echo(str(output))
 
 
-@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    invoke_without_command=True,
+)
 @click.option("--image", help="Docker image tag. Docker is the default runtime.")
 @click.option(
     "--sif",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Singularity or Apptainer SIF file.",
 )
+@click.option("--check", "check_", is_flag=True, help="Check the selected SPM container and print its version.")
 @click.pass_context
-def main(ctx: click.Context, image: str | None, sif: Path | None) -> None:
+def main(ctx: click.Context, image: str | None, sif: Path | None, check_: bool) -> None:
     """Run MATLAB-free presurfer workflows through SPM Standalone.
 
     Args:
         ctx: Click context used to pass selected runtime configuration.
         image: Optional Docker image tag.
         sif: Optional local Singularity or Apptainer SIF path.
+        check_: Whether to check the selected container and exit.
 
     Raises:
         click.UsageError: If Docker and SIF image options are combined.
@@ -466,6 +522,14 @@ def main(ctx: click.Context, image: str | None, sif: Path | None) -> None:
     ctx.ensure_object(dict)
     ctx.obj["image"] = str(sif) if sif else (image or IMAGE)
     ctx.obj["runtime"] = "singularity" if sif else "docker"
+    if check_:
+        try:
+            click.echo(check_container(**ctx.obj))
+        except RuntimeError as error:
+            raise click.ClickException(str(error)) from error
+        ctx.exit()
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @main.command(name="presurf_biascorrect")
