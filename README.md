@@ -12,11 +12,18 @@ and retains the original MATLAB implementation as a Git submodule.
 
 ## Install
 
-Clone the repository and its pinned legacy MATLAB submodule:
+For the containerized Python workflows, clone the repository:
 
 ```bash
-git clone --recurse-submodules https://github.com/srikash/presurfer-box.git
+git clone https://github.com/srikash/presurfer-box.git
 cd presurfer-box
+```
+
+The legacy MATLAB source is optional. Fetch its pinned submodule only if you
+need to inspect or run the historical implementation:
+
+```bash
+git submodule update --init --recursive
 ```
 
 ### Docker
