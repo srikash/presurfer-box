@@ -1,47 +1,67 @@
 # presurfer-box [![DOI](https://zenodo.org/badge/1350566808.svg)](https://doi.org/10.5281/zenodo.22163094)
 
-## MATLAB-free execution
+MATLAB-free MP2RAGE preprocessing using SPM Standalone in Docker,
+Singularity, or Apptainer.
 
-The original MATLAB functions remain available, but new runs can use SPM
-Standalone in Docker and do **not** need a MATLAB licence or local MATLAB/SPM
-installation. The wrapper uses the [official SPM Docker image](https://github.com/spm/spm-docker),
-pinned to SPM 25.01.02:
+`presurfer-box` provides presurfer workflows without requiring a local MATLAB
+installation or MATLAB license. It uses the [official SPM Standalone container](https://github.com/spm/spm-docker)
+and retains the original MATLAB implementation as a Git submodule.
+
+> **Status:** This implementation uses SPM25 Standalone. Results have not yet
+> been numerically validated against the historical SPM12/MATLAB pipeline.
+
+## Install
+
+### Docker
 
 ```bash
 docker pull ghcr.io/spm/spm-docker:docker-matlab-25.01.02
 python3 -m pip install .
-presurfer-box presurf_MPRAGEise INV2.nii UNI.nii
-presurfer-box presurf_INV2 INV2.nii
-presurfer-box presurf_UNI UNI.nii
 ```
 
 ### Singularity / Apptainer
 
-For HPC systems, download the official corresponding SIF once, then pass it
-with `--sif`:
-
 ```bash
-singularity pull --name spm-docker_singularity-matlab-25.01.02.sif \
+singularity pull --name spm.sif \
   oras://ghcr.io/spm/spm-docker:singularity-matlab-25.01.02
-presurfer-box --sif spm-docker_singularity-matlab-25.01.02.sif presurf_INV2 INV2.nii
+
+python3 -m pip install .
 ```
 
-`apptainer pull` and `apptainer exec` are also supported. Docker is the default;
-use `--image IMAGE` only to override its Docker image tag. `--image` and
-`--sif` are mutually exclusive.
+## Quick start
 
-The Docker commands deliberately use the same names as the original MATLAB
-functions: `presurf_biascorrect`, `presurf_INV2`, `presurf_UNI`, and
-`presurf_MPRAGEise`. Inputs may be `.nii` or `.nii.gz`. Unlike the legacy
-MATLAB functions, the wrapper does not delete a compressed input while
-preparing it.
+```bash
+# Create MPRAGEised UNI
+presurfer-box presurf_MPRAGEise INV2.nii UNI.nii
 
-Like the original example, `presurf_MPRAGEise INV2.nii UNI.nii` runs a
-temporary INV2 **bias correction** before the MPRAGEise calculation;
-`presurf_INV2 INV2.nii` then performs the distinct segmentation that produces
-the strip mask. It is not a duplicate `presurf_INV2` invocation.
+# Create an INV2-derived strip mask
+presurfer-box presurf_INV2 INV2.nii
 
-### Python library
+# Create UNI tissue, brain, and white-matter masks
+presurfer-box presurf_UNI UNI.nii
+```
+
+Use a local Singularity or Apptainer image with `--sif`:
+
+```bash
+presurfer-box --sif spm.sif presurf_INV2 INV2.nii
+```
+
+Docker is the default runtime. Override its image with `--image IMAGE`.
+
+## Choose a workflow
+
+| Need | CLI command | Python function | Primary output |
+| --- | --- | --- | --- |
+| Bias-correct an image | `presurf_biascorrect IMAGE` | `spm_biascorrect()` | Bias-corrected image and bias field |
+| Create MPRAGEised UNI | `presurf_MPRAGEise INV2 UNI` | `spm_mprageise()` | `*_MPRAGEised.nii` |
+| Create a strip mask | `presurf_INV2 INV2` | `spm_stripmask()` | `*_stripmask.nii` |
+| Segment UNI | `presurf_UNI UNI` | `spm_seg()` | Tissue classes, brain mask, and WM mask |
+
+`presurf_MPRAGEise` bias-corrects INV2, min-max normalizes the corrected INV2,
+then multiplies it voxelwise with UNI. It does not run the strip-mask workflow.
+
+## Python API
 
 ```python
 from presurfer import spm_biascorrect, spm_mprageise, spm_seg, spm_stripmask
@@ -52,80 +72,47 @@ spm_stripmask("INV2.nii")
 spm_seg("UNI.nii")
 ```
 
-These are deliberately separate modules. Python names cannot contain hyphens,
-so use underscores rather than `spm-biascorrect` etc. Each accepts an optional
-`image="..."` and `runtime="docker"` or `runtime="singularity"` select the
-container backend in the Python API. For Singularity, `image` is the local
-`.sif` path.
+All functions accept `image=` and `runtime=` keywords. Use
+`runtime="singularity"` with a local SIF path passed as `image=`.
 
-The wrapper generates the original SPM Unified Segmentation and Image
-Calculator batches and runs them with Docker or Singularity, mounting the
-input/output directory at `/data`. It reports a missing runtime, image, or
-failed SPM job as an error.
+## Outputs
 
-This is a migration from SPM12 to SPM25: results have **not** been numerically
-validated against the old MATLAB/SPM12 pipeline because this repository has no
-reference NIfTI test data and no exact historical SPM12 revision. Do not claim
-identical numerical outputs until those inputs and baseline outputs are tested.
-The MPRAGEise multiplication is reimplemented with NumPy/NiBabel; it preserves
-the original `mat2gray(INV2) .* UNI` calculation, but it also needs validation
-on representative data.
+Each workflow creates an output directory beside its input:
 
-## Example
+```text
+presurf_biascorrect/
+presurf_MPRAGEise/
+presurf_INV2/
+presurf_UNI/
+```
 
-### Legacy MATLAB functions
+Compressed `.nii.gz` inputs are supported. The source file is preserved; the
+workflow creates an uncompressed working copy in its output directory.
 
-The original MATLAB implementation is retained under `src/matlab/presurfer`.
-Before using the examples below with MATLAB, add its function directory to the
-MATLAB path:
+## Legacy MATLAB implementation
+
+The original MATLAB implementation remains available as a pinned Git submodule:
+
+```text
+src/matlab/presurfer
+```
+
+For MATLAB use:
 
 ```matlab
 addpath('src/matlab/presurfer/func')
 ```
 
-### Step-0 : MPRAGEise UNI
-Run `presurf_MPRAGEise` <br>
+Update the submodule only when intentionally adopting a newer original
+presurfer commit.
 
-<img src="https://github.com/srikash/TheBeesKnees/blob/main/imgs/presurfer_step0.gif" width="400">
+## Reproducibility and validation
 
-[MPRAGEising is better than background removal ('denoising')](https://github.com/srikash/3dMPRAGEise)
-<br>
+- Default image: `ghcr.io/spm/spm-docker:docker-matlab-25.01.02`
+- SPM runtime: SPM25 Standalone
+- Historical implementation: SPM12 with MATLAB
+- Numerical equivalence has not yet been validated with reference NIfTI data.
 
-Optional: \
-Strip dielectric pads if used now (see [PadsOff](https://github.com/srikash/faceoff/blob/master/PadsOff), needs [ANTs](https://github.com/srikash/TheBeesKnees/wiki/Installing-Advanced-Normalization-Tools-(ANTs)))
+## Citation
 
-<img src="https://github.com/srikash/TheBeesKnees/blob/main/imgs/presurfer_step0b.gif" width="400">
-
-### Step-1 : Get a stripMask from INV2
-Run `presurf_INV2` <br>
-
-<img src="https://github.com/srikash/TheBeesKnees/blob/main/imgs/presurf_INV2_output.png" width="400">
-
-### Step-2 : Get a brainMask from UNI
-Run `presurf_UNI` <br>
-
-<img src="https://github.com/srikash/TheBeesKnees/blob/main/imgs/presurf_UNI_output.png" width="400">
-
-### Step-3 : Freesurfer
-Use the INV2 stripMask to clean up the non-brain parts of the MPRAGEised UNI image.
-
-e.g. `fslmaths MPRAGEised.nii -mul stripMask.nii MPRAGEised_stripped.nii`
-
-Run `recon-all` using the MPRAGEised_stripped image <br>
-
-Here is an example of a fully automated segmentation using presurfer + Freesurfer and laminar surfaces: 
-
-<img src="https://github.com/srikash/TheBeesKnees/blob/main/imgs/freesurfer_seg.png" width="1200">
-
-<br>
-
-<img src="https://github.com/srikash/TheBeesKnees/blob/main/imgs/drake_presurfer.jpg" width="400">
-
-### Misc. note
-Run `presurf_biascorrect` to do just do SPM bias-correction.
-<br>
-
-Every step produces a sub-directory in the working directory containing all relevant segmentations and masks.
-<br>
-
-e.g. running `presurf_INV2` creates a presurf_INV2 sub-directory
+See [CITATION.cff](CITATION.cff).
