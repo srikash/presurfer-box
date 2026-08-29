@@ -75,12 +75,12 @@ on representative data.
 
 ### Legacy MATLAB functions
 
-The original MATLAB implementation is retained under `src/presurfer-matlab`.
+The original MATLAB implementation is retained under `src/matlab/presurfer`.
 Before using the examples below with MATLAB, add its function directory to the
 MATLAB path:
 
 ```matlab
-addpath('src/presurfer-matlab/func')
+addpath('src/matlab/presurfer/func')
 ```
 
 ### Step-0 : MPRAGEise UNI
