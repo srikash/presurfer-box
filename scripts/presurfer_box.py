@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Run presurfer's SPM jobs in official SPM Standalone containers.
+"""Run presurfer preprocessing with SPM Standalone containers.
 
-The SPM work is performed in the container.  File management and the small
-MPRAGEise calculation live here so a local MATLAB installation is not needed.
+The public API provides separate bias-correction, MPRAGEise, strip-mask, and
+UNI segmentation workflows. SPM work runs in Docker or Singularity/Apptainer;
+host-side Python handles file preparation and the MPRAGEise multiplication.
+
+Note:
+    The default runtime uses SPM25 Standalone. Results have not yet been
+    numerically validated against the historical SPM12/MATLAB workflow.
 """
 
 from __future__ import annotations
@@ -21,10 +26,29 @@ SINGULARITY_IMAGE = "spm-docker_singularity-matlab-25.01.02.sif"
 
 
 def fail(message: str) -> "None":
+    """Raise a user-facing runtime error.
+
+    Args:
+        message: Error message describing the failed precondition or job.
+
+    Raises:
+        RuntimeError: Always raised with ``message``.
+    """
     raise RuntimeError(message)
 
 
 def nii_stem(path: Path) -> str:
+    """Return a NIfTI basename without ``.nii`` or ``.nii.gz``.
+
+    Args:
+        path: NIfTI file path.
+
+    Returns:
+        Filename without its NIfTI extension.
+
+    Raises:
+        RuntimeError: If ``path`` does not have a supported NIfTI extension.
+    """
     name = path.name
     if name.endswith(".nii.gz"):
         return name[:-7]
@@ -34,7 +58,21 @@ def nii_stem(path: Path) -> str:
 
 
 def materialize_input(source: Path, output_dir: Path) -> Path:
-    """Copy an input to output_dir, decompressing without modifying the source."""
+    """Copy a NIfTI input into an output directory.
+
+    Compressed inputs are decompressed to ``.nii`` without modifying the
+    original source file.
+
+    Args:
+        source: Existing ``.nii`` or ``.nii.gz`` input file.
+        output_dir: Directory that receives the materialized ``.nii`` file.
+
+    Returns:
+        Path to the copied or decompressed ``.nii`` file.
+
+    Raises:
+        RuntimeError: If ``source`` does not exist or is not a NIfTI file.
+    """
     if not source.is_file():
         fail(f"Input file does not exist: {source}")
     target = output_dir / f"{nii_stem(source)}.nii"
@@ -47,6 +85,18 @@ def materialize_input(source: Path, output_dir: Path) -> Path:
 
 
 def container_path(host_path: Path, mount_root: Path) -> str:
+    """Map a path below a host mount directory to its container path.
+
+    Args:
+        host_path: Host path to expose inside the container.
+        mount_root: Host directory mounted at ``/data``.
+
+    Returns:
+        Equivalent absolute path below ``/data`` inside the container.
+
+    Raises:
+        RuntimeError: If ``host_path`` is outside ``mount_root``.
+    """
     try:
         return "/data/" + str(host_path.resolve().relative_to(mount_root.resolve()))
     except ValueError as error:
@@ -55,7 +105,21 @@ def container_path(host_path: Path, mount_root: Path) -> str:
 
 
 def container_command(mount_root: Path, job_file: Path, image: str, runtime: str) -> list[str]:
-    """Construct the container runtime command for a generated SPM batch."""
+    """Build a Docker or Singularity/Apptainer SPM batch command.
+
+    Args:
+        mount_root: Host directory mounted at ``/data``.
+        job_file: Generated SPM batch script below ``mount_root``.
+        image: Docker image tag or local Singularity image path.
+        runtime: ``"docker"`` or ``"singularity"``.
+
+    Returns:
+        Command arguments suitable for ``subprocess.run``.
+
+    Raises:
+        RuntimeError: If the runtime is unsupported, unavailable, or its SIF
+            image does not exist.
+    """
     job = container_path(job_file, mount_root)
     if runtime == "docker":
         return ["docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}",
@@ -75,7 +139,18 @@ def container_command(mount_root: Path, job_file: Path, image: str, runtime: str
 
 
 def run_spm_batch(mount_root: Path, job_file: Path, image: str, runtime: str) -> None:
-    """Run a generated SPM batch and preserve container error output."""
+    """Run a generated SPM batch in the selected container runtime.
+
+    Args:
+        mount_root: Host directory mounted at ``/data``.
+        job_file: Generated SPM batch script below ``mount_root``.
+        image: Docker image tag or local Singularity image path.
+        runtime: ``"docker"`` or ``"singularity"``.
+
+    Raises:
+        RuntimeError: If the runtime or image is unavailable, or the SPM batch
+            exits unsuccessfully.
+    """
     if runtime == "docker":
         if shutil.which("docker") is None:
             fail("Docker was not found on PATH. Install Docker, then pull the SPM image.")
@@ -92,6 +167,17 @@ def run_spm_batch(mount_root: Path, job_file: Path, image: str, runtime: str) ->
 
 
 def segmentation_job(input_file: str, output_dir: str, native: list[int], samp: int) -> str:
+    """Generate an SPM Unified Segmentation batch script.
+
+    Args:
+        input_file: Container path to the input NIfTI file.
+        output_dir: Container path where SPM writes results.
+        native: Six flags selecting native tissue-class outputs.
+        samp: Segmentation sampling distance in millimetres.
+
+    Returns:
+        Executable MATLAB batch-script source.
+    """
     tissues = "\n".join(
         "matlabbatch{1}.spm.spatial.preproc.tissue(%d).tpm = {fullfile(spm('Dir'),'tpm','TPM.nii,%d')};\n"
         "matlabbatch{1}.spm.spatial.preproc.tissue(%d).ngaus = %d;\n"
@@ -122,6 +208,17 @@ save(fullfile('{output_dir}','{Path(input_file).stem}_presurfSegBatch.mat'),'mat
 
 
 def imcalc_job(inputs: list[str], output: str, expression: str, batch_file: str) -> str:
+    """Generate an SPM Image Calculator batch script.
+
+    Args:
+        inputs: Container paths to input NIfTI files.
+        output: Container path for the output NIfTI file.
+        expression: SPM Image Calculator expression using ``i1``, ``i2``, etc.
+        batch_file: Container path for the saved ``matlabbatch`` MAT file.
+
+    Returns:
+        Executable MATLAB batch-script source.
+    """
     quoted_inputs = "\n".join(f"    '{item},1'" for item in inputs)
     return f"""spm('defaults','FMRI');
 spm_jobman('initcfg');
@@ -142,6 +239,13 @@ save('{batch_file}','matlabbatch');
 
 
 def rename_segmentation(out: Path, stem: str, classes: tuple[int, ...]) -> None:
+    """Rename SPM segmentation outputs to presurfer output names.
+
+    Args:
+        out: Directory containing SPM-produced segmentation files.
+        stem: NIfTI basename without its extension.
+        classes: Native tissue-class numbers retained by the workflow.
+    """
     for produced, suffix in ((f"m{stem}.nii", "_biascorrected.nii"),
                              (f"BiasField_{stem}.nii", "_biasfield.nii")):
         (out / produced).replace(out / f"{stem}{suffix}")
@@ -151,6 +255,21 @@ def rename_segmentation(out: Path, stem: str, classes: tuple[int, ...]) -> None:
 
 
 def run_segmentation(source: Path, kind: str, image: str, runtime: str) -> Path:
+    """Run one configured presurfer SPM segmentation workflow.
+
+    Args:
+        source: Input ``.nii`` or ``.nii.gz`` file.
+        kind: Workflow name: ``"biascorrect"``, ``"UNI"``, or ``"INV2"``.
+        image: Docker image tag or local Singularity image path.
+        runtime: ``"docker"`` or ``"singularity"``.
+
+    Returns:
+        Created ``presurf_<kind>`` output directory.
+
+    Raises:
+        RuntimeError: If input validation, container execution, or expected SPM
+            output handling fails.
+    """
     source = source.resolve()
     if not source.is_file():
         fail(f"Input file does not exist: {source}")
@@ -193,6 +312,23 @@ def run_segmentation(source: Path, kind: str, image: str, runtime: str) -> Path:
 
 
 def mprageise(inv2: Path, uni: Path, image: str, runtime: str) -> Path:
+    """Create a MPRAGEised UNI image from INV2 and UNI acquisitions.
+
+    The workflow bias-corrects INV2 with SPM, min-max normalizes the resulting
+    image, and multiplies it voxelwise with UNI.
+
+    Args:
+        inv2: INV2 ``.nii`` or ``.nii.gz`` input file.
+        uni: UNI ``.nii`` or ``.nii.gz`` input file.
+        image: Docker image tag or local Singularity image path.
+        runtime: ``"docker"`` or ``"singularity"``.
+
+    Returns:
+        Path to the generated ``*_MPRAGEised.nii`` image.
+
+    Raises:
+        RuntimeError: If SPM bias correction fails or NumPy/NiBabel is absent.
+    """
     bias_dir = run_segmentation(inv2, "biascorrect", image, runtime)
     try:
         import nibabel as nib
@@ -217,22 +353,75 @@ def mprageise(inv2: Path, uni: Path, image: str, runtime: str) -> Path:
 
 # Public Python API. Hyphens are not valid in Python identifiers.
 def spm_biascorrect(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
-    """Run SPM bias correction and return ``presurf_biascorrect``."""
+    """Run SPM bias correction.
+
+    Args:
+        input_file: Path to a ``.nii`` or ``.nii.gz`` image.
+        image: Docker image tag or local Singularity image path. Defaults to the
+            pinned official SPM25 Docker image.
+        runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+
+    Returns:
+        Path to the ``presurf_biascorrect`` output directory.
+
+    Raises:
+        RuntimeError: If input validation or SPM execution fails.
+    """
     return run_segmentation(Path(input_file), "biascorrect", image, runtime)
 
 
 def spm_mprageise(inv2_file: str | Path, uni_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
-    """Bias-correct INV2, min-max normalise it, and multiply it with UNI."""
+    """Create a MPRAGEised UNI image.
+
+    Args:
+        inv2_file: Path to the INV2 ``.nii`` or ``.nii.gz`` image.
+        uni_file: Path to the UNI ``.nii`` or ``.nii.gz`` image.
+        image: Docker image tag or local Singularity image path. Defaults to the
+            pinned official SPM25 Docker image.
+        runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+
+    Returns:
+        Path to the generated ``*_MPRAGEised.nii`` image.
+
+    Raises:
+        RuntimeError: If SPM bias correction or image processing fails.
+    """
     return mprageise(Path(inv2_file), Path(uni_file), image, runtime)
 
 
 def spm_stripmask(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
-    """Run INV2 segmentation and produce the class-3-to-6 strip mask."""
+    """Generate an INV2-derived non-brain strip mask.
+
+    Args:
+        input_file: Path to an INV2 ``.nii`` or ``.nii.gz`` image.
+        image: Docker image tag or local Singularity image path. Defaults to the
+            pinned official SPM25 Docker image.
+        runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+
+    Returns:
+        Path to the ``presurf_INV2`` output directory, including the strip mask.
+
+    Raises:
+        RuntimeError: If input validation or SPM execution fails.
+    """
     return run_segmentation(Path(input_file), "INV2", image, runtime)
 
 
 def spm_seg(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
-    """Run UNI segmentation and produce class, brain-, and WM-mask outputs."""
+    """Generate UNI tissue-class, brain-mask, and WM-mask outputs.
+
+    Args:
+        input_file: Path to a UNI ``.nii`` or ``.nii.gz`` image.
+        image: Docker image tag or local Singularity image path. Defaults to the
+            pinned official SPM25 Docker image.
+        runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+
+    Returns:
+        Path to the ``presurf_UNI`` output directory.
+
+    Raises:
+        RuntimeError: If input validation or SPM execution fails.
+    """
     return run_segmentation(Path(input_file), "UNI", image, runtime)
 
 
