@@ -1,6 +1,6 @@
 # presurfer [![DOI](https://zenodo.org/badge/307506444.svg)](https://zenodo.org/badge/latestdoi/307506444)
 
-## Docker / MATLAB-free execution
+## MATLAB-free execution
 
 The original MATLAB functions remain available, but new runs can use SPM
 Standalone in Docker and do **not** need a MATLAB licence or local MATLAB/SPM
