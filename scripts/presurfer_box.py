@@ -304,7 +304,27 @@ def rename_segmentation(out: Path, stem: str, classes: tuple[int, ...]) -> None:
     (out / f"{stem}_seg8.mat").unlink(missing_ok=True)
 
 
-def run_segmentation(source: Path, kind: str, image: str, runtime: str) -> Path:
+def prepare_output_dir(output_dir: Path, clobber: bool) -> None:
+    """Create an output directory, optionally replacing an existing one.
+
+    Args:
+        output_dir: Workflow output directory to create.
+        clobber: Whether to remove an existing output directory first.
+
+    Raises:
+        RuntimeError: If the output already exists without ``clobber``, or is
+            an existing file rather than a directory.
+    """
+    if output_dir.exists():
+        if not output_dir.is_dir():
+            fail(f"Output path exists and is not a directory: {output_dir}")
+        if not clobber:
+            fail(f"Output directory already exists: {output_dir}\nUse --clobber to overwrite it.")
+        shutil.rmtree(output_dir)
+    output_dir.mkdir()
+
+
+def run_segmentation(source: Path, kind: str, image: str, runtime: str, clobber: bool = False) -> Path:
     """Run one configured presurfer SPM segmentation workflow.
 
     Args:
@@ -312,6 +332,7 @@ def run_segmentation(source: Path, kind: str, image: str, runtime: str) -> Path:
         kind: Workflow name: ``"biascorrect"``, ``"UNI"``, or ``"INV2"``.
         image: Docker image tag or local Singularity image path.
         runtime: ``"docker"`` or ``"singularity"``.
+        clobber: Whether to replace an existing workflow output directory.
 
     Returns:
         Created ``presurf_<kind>`` output directory.
@@ -324,7 +345,7 @@ def run_segmentation(source: Path, kind: str, image: str, runtime: str) -> Path:
     if not source.is_file():
         fail(f"Input file does not exist: {source}")
     out = source.parent / f"presurf_{kind}"
-    out.mkdir(exist_ok=False)
+    prepare_output_dir(out, clobber)
     copied = materialize_input(source, out)
     mount_root = source.parent
     input_in_container = container_path(copied, mount_root)
@@ -361,7 +382,7 @@ def run_segmentation(source: Path, kind: str, image: str, runtime: str) -> Path:
     return out
 
 
-def mprageise(inv2: Path, uni: Path, image: str, runtime: str) -> Path:
+def mprageise(inv2: Path, uni: Path, image: str, runtime: str, clobber: bool = False) -> Path:
     """Create a MPRAGEised UNI image from INV2 and UNI acquisitions.
 
     The workflow bias-corrects INV2 with SPM, min-max normalizes the resulting
@@ -372,6 +393,8 @@ def mprageise(inv2: Path, uni: Path, image: str, runtime: str) -> Path:
         uni: UNI ``.nii`` or ``.nii.gz`` input file.
         image: Docker image tag or local Singularity image path.
         runtime: ``"docker"`` or ``"singularity"``.
+        clobber: Whether to replace existing bias-correction and MPRAGEise
+            output directories.
 
     Returns:
         Path to the generated ``*_MPRAGEised.nii`` image.
@@ -379,7 +402,7 @@ def mprageise(inv2: Path, uni: Path, image: str, runtime: str) -> Path:
     Raises:
         RuntimeError: If SPM bias correction fails or NumPy/NiBabel is absent.
     """
-    bias_dir = run_segmentation(inv2, "biascorrect", image, runtime)
+    bias_dir = run_segmentation(inv2, "biascorrect", image, runtime, clobber)
     try:
         import nibabel as nib
         import numpy as np
@@ -387,7 +410,7 @@ def mprageise(inv2: Path, uni: Path, image: str, runtime: str) -> Path:
         fail("MPRAGEise needs numpy and nibabel. Install with: pip install -r requirements.txt")
     uni = uni.resolve()
     output_dir = uni.parent / "presurf_MPRAGEise"
-    output_dir.mkdir(exist_ok=False)
+    prepare_output_dir(output_dir, clobber)
     uni_local = materialize_input(uni, output_dir)
     inv2_bias = bias_dir / f"{nii_stem(inv2)}_biascorrected.nii"
     uni_img = nib.load(str(uni_local))
@@ -402,7 +425,13 @@ def mprageise(inv2: Path, uni: Path, image: str, runtime: str) -> Path:
 
 
 # Public Python API. Hyphens are not valid in Python identifiers.
-def spm_biascorrect(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
+def spm_biascorrect(
+    input_file: str | Path,
+    *,
+    image: str = IMAGE,
+    runtime: str = "docker",
+    clobber: bool = False,
+) -> Path:
     """Run SPM bias correction.
 
     Args:
@@ -410,6 +439,8 @@ def spm_biascorrect(input_file: str | Path, *, image: str = IMAGE, runtime: str 
         image: Docker image tag or local Singularity image path. Defaults to the
             pinned official SPM25 Docker image.
         runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+        clobber: Whether to replace an existing output directory. Defaults to
+            ``False``.
 
     Returns:
         Path to the ``presurf_biascorrect`` output directory.
@@ -417,10 +448,17 @@ def spm_biascorrect(input_file: str | Path, *, image: str = IMAGE, runtime: str 
     Raises:
         RuntimeError: If input validation or SPM execution fails.
     """
-    return run_segmentation(Path(input_file), "biascorrect", image, runtime)
+    return run_segmentation(Path(input_file), "biascorrect", image, runtime, clobber)
 
 
-def spm_mprageise(inv2_file: str | Path, uni_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
+def spm_mprageise(
+    inv2_file: str | Path,
+    uni_file: str | Path,
+    *,
+    image: str = IMAGE,
+    runtime: str = "docker",
+    clobber: bool = False,
+) -> Path:
     """Create a MPRAGEised UNI image.
 
     Args:
@@ -429,6 +467,8 @@ def spm_mprageise(inv2_file: str | Path, uni_file: str | Path, *, image: str = I
         image: Docker image tag or local Singularity image path. Defaults to the
             pinned official SPM25 Docker image.
         runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+        clobber: Whether to replace existing output directories. Defaults to
+            ``False``.
 
     Returns:
         Path to the generated ``*_MPRAGEised.nii`` image.
@@ -436,10 +476,16 @@ def spm_mprageise(inv2_file: str | Path, uni_file: str | Path, *, image: str = I
     Raises:
         RuntimeError: If SPM bias correction or image processing fails.
     """
-    return mprageise(Path(inv2_file), Path(uni_file), image, runtime)
+    return mprageise(Path(inv2_file), Path(uni_file), image, runtime, clobber)
 
 
-def spm_stripmask(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
+def spm_stripmask(
+    input_file: str | Path,
+    *,
+    image: str = IMAGE,
+    runtime: str = "docker",
+    clobber: bool = False,
+) -> Path:
     """Generate an INV2-derived non-brain strip mask.
 
     Args:
@@ -447,6 +493,8 @@ def spm_stripmask(input_file: str | Path, *, image: str = IMAGE, runtime: str = 
         image: Docker image tag or local Singularity image path. Defaults to the
             pinned official SPM25 Docker image.
         runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+        clobber: Whether to replace an existing output directory. Defaults to
+            ``False``.
 
     Returns:
         Path to the ``presurf_INV2`` output directory, including the strip mask.
@@ -454,10 +502,16 @@ def spm_stripmask(input_file: str | Path, *, image: str = IMAGE, runtime: str = 
     Raises:
         RuntimeError: If input validation or SPM execution fails.
     """
-    return run_segmentation(Path(input_file), "INV2", image, runtime)
+    return run_segmentation(Path(input_file), "INV2", image, runtime, clobber)
 
 
-def spm_seg(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docker") -> Path:
+def spm_seg(
+    input_file: str | Path,
+    *,
+    image: str = IMAGE,
+    runtime: str = "docker",
+    clobber: bool = False,
+) -> Path:
     """Generate UNI tissue-class, brain-mask, and WM-mask outputs.
 
     Args:
@@ -465,6 +519,8 @@ def spm_seg(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docke
         image: Docker image tag or local Singularity image path. Defaults to the
             pinned official SPM25 Docker image.
         runtime: ``"docker"`` or ``"singularity"``. Defaults to ``"docker"``.
+        clobber: Whether to replace an existing output directory. Defaults to
+            ``False``.
 
     Returns:
         Path to the ``presurf_UNI`` output directory.
@@ -472,7 +528,7 @@ def spm_seg(input_file: str | Path, *, image: str = IMAGE, runtime: str = "docke
     Raises:
         RuntimeError: If input validation or SPM execution fails.
     """
-    return run_segmentation(Path(input_file), "UNI", image, runtime)
+    return run_segmentation(Path(input_file), "UNI", image, runtime, clobber)
 
 
 def _run_command(ctx: click.Context, operation: object, *args: Path) -> None:
@@ -504,8 +560,9 @@ def _run_command(ctx: click.Context, operation: object, *args: Path) -> None:
     help="Singularity or Apptainer SIF file.",
 )
 @click.option("--check", "check_", is_flag=True, help="Check the selected SPM container and print its version.")
+@click.option("--clobber", is_flag=True, help="Replace existing workflow output directories.")
 @click.pass_context
-def main(ctx: click.Context, image: str | None, sif: Path | None, check_: bool) -> None:
+def main(ctx: click.Context, image: str | None, sif: Path | None, check_: bool, clobber: bool) -> None:
     """Run MATLAB-free presurfer workflows through SPM Standalone.
 
     Args:
@@ -513,6 +570,7 @@ def main(ctx: click.Context, image: str | None, sif: Path | None, check_: bool) 
         image: Optional Docker image tag.
         sif: Optional local Singularity or Apptainer SIF path.
         check_: Whether to check the selected container and exit.
+        clobber: Whether workflows may replace existing output directories.
 
     Raises:
         click.UsageError: If Docker and SIF image options are combined.
@@ -522,9 +580,10 @@ def main(ctx: click.Context, image: str | None, sif: Path | None, check_: bool) 
     ctx.ensure_object(dict)
     ctx.obj["image"] = str(sif) if sif else (image or IMAGE)
     ctx.obj["runtime"] = "singularity" if sif else "docker"
+    ctx.obj["clobber"] = clobber
     if check_:
         try:
-            click.echo(check_container(**ctx.obj))
+            click.echo(check_container(ctx.obj["image"], ctx.obj["runtime"]))
         except RuntimeError as error:
             raise click.ClickException(str(error)) from error
         ctx.exit()
@@ -532,15 +591,15 @@ def main(ctx: click.Context, image: str | None, sif: Path | None, check_: bool) 
         click.echo(ctx.get_help())
 
 
-@main.command(name="presurf_biascorrect")
+@main.command(name="biascorrect")
 @click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.pass_context
 def presurf_biascorrect(ctx: click.Context, input_file: Path) -> None:
-    """Run SPM bias correction on INPUT_FILE."""
+    """Create a bias-corrected image from INPUT_FILE."""
     _run_command(ctx, spm_biascorrect, input_file)
 
 
-@main.command(name="presurf_MPRAGEise")
+@main.command(name="MPRAGEise")
 @click.argument("inv2_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("uni_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.pass_context
@@ -549,19 +608,19 @@ def presurf_mprageise(ctx: click.Context, inv2_file: Path, uni_file: Path) -> No
     _run_command(ctx, spm_mprageise, inv2_file, uni_file)
 
 
-@main.command(name="presurf_INV2")
+@main.command(name="stripmask")
 @click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.pass_context
 def presurf_inv2(ctx: click.Context, input_file: Path) -> None:
-    """Generate an INV2-derived strip mask from INPUT_FILE."""
+    """Create an INV2-derived strip mask from INPUT_FILE."""
     _run_command(ctx, spm_stripmask, input_file)
 
 
-@main.command(name="presurf_UNI")
+@main.command(name="brainmask")
 @click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.pass_context
 def presurf_uni(ctx: click.Context, input_file: Path) -> None:
-    """Generate UNI segmentation, brain-mask, and WM-mask outputs."""
+    """Create UNI tissue classes, brain mask, and WM mask from INPUT_FILE."""
     _run_command(ctx, spm_seg, input_file)
 
 

@@ -47,34 +47,46 @@ presurfer-box --sif spm.sif --check
 ## Quick start
 
 ```bash
+# Create a bias-corrected image and bias field
+presurfer-box biascorrect IMAGE.nii
+
 # Create MPRAGEised UNI
-presurfer-box presurf_MPRAGEise INV2.nii UNI.nii
+presurfer-box MPRAGEise INV2.nii UNI.nii
 
 # Create an INV2-derived strip mask
-presurfer-box presurf_INV2 INV2.nii
+presurfer-box stripmask INV2.nii
 
-# Create UNI tissue, brain, and white-matter masks
-presurfer-box presurf_UNI UNI.nii
+# Create UNI tissue classes, brain mask, and white-matter mask
+presurfer-box brainmask UNI.nii
 ```
 
 Use a local Singularity or Apptainer image with `--sif`:
 
 ```bash
-presurfer-box --sif spm.sif presurf_INV2 INV2.nii
+presurfer-box --sif spm.sif stripmask INV2.nii
 ```
 
 Docker is the default runtime. Override its image with `--image IMAGE`.
+
+Existing workflow output directories are protected by default. To replace one,
+pass `--clobber` before the command:
+
+```bash
+presurfer-box --clobber stripmask INV2.nii
+```
+
+This removes and recreates that workflow's `presurf_*` output directory.
 
 ## Choose a workflow
 
 | Need | CLI command | Python function | Primary output |
 | --- | --- | --- | --- |
-| Bias-correct an image | `presurf_biascorrect IMAGE` | `spm_biascorrect()` | Bias-corrected image and bias field |
-| Create MPRAGEised UNI | `presurf_MPRAGEise INV2 UNI` | `spm_mprageise()` | `*_MPRAGEised.nii` |
-| Create a strip mask | `presurf_INV2 INV2` | `spm_stripmask()` | `*_stripmask.nii` |
-| Segment UNI | `presurf_UNI UNI` | `spm_seg()` | Tissue classes, brain mask, and WM mask |
+| Bias-correct an image | `biascorrect IMAGE` | `spm_biascorrect()` | Bias-corrected image and bias field |
+| Create MPRAGEised UNI | `MPRAGEise INV2 UNI` | `spm_mprageise()` | `*_MPRAGEised.nii` |
+| Create a strip mask | `stripmask INV2` | `spm_stripmask()` | `*_stripmask.nii` |
+| Create UNI-derived masks | `brainmask UNI` | `spm_seg()` | Tissue classes, brain mask, and WM mask |
 
-`presurf_MPRAGEise` bias-corrects INV2, min-max normalizes the corrected INV2,
+`MPRAGEise` bias-corrects INV2, min-max normalizes the corrected INV2,
 then multiplies it voxelwise with UNI. It does not run the strip-mask workflow.
 
 ## Python API
