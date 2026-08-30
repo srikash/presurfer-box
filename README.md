@@ -134,7 +134,7 @@ addpath('src/matlab/presurfer/func')
 ```
 
 Update the submodule only when intentionally adopting a newer original
-presurfer commit.
+presurfer commit (unlikely to happen).
 
 ## Reproducibility and validation
 
