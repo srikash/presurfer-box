@@ -1,6 +1,6 @@
 """SPM container runtime commands and execution."""
 
-from presurfer.preprocessing_workflows import (
+from presurfer.spm_workflows import (
     check_container,
     container_command,
     run_spm_batch,

@@ -1,5 +1,5 @@
 """Click command-line entry point for presurfer."""
 
-from presurfer.preprocessing_workflows import main
+from presurfer.presurfer_workflows import main
 
 __all__ = ["main"]

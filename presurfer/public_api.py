@@ -1,6 +1,6 @@
 """Stable public API for presurfer preprocessing workflows."""
 
-from presurfer.preprocessing_workflows import (
+from presurfer.presurfer_workflows import (
     IMAGE,
     SINGULARITY_IMAGE,
     spm_biascorrect,

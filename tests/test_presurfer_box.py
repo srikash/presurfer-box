@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from presurfer import preprocessing_workflows as presurfer_box
+from presurfer import spm_workflows as presurfer_box
 
 
 def test_nii_stem_rejects_non_nifti(tmp_path: Path) -> None:
