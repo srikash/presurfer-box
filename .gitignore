@@ -1,2 +1,5 @@
 __pycache__/
 *.py[cod]
+CODE_REVIEW.md
+uv.lock
+.venv/

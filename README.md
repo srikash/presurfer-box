@@ -30,7 +30,7 @@ git submodule update --init --recursive
 
 ```bash
 docker pull ghcr.io/spm/spm-docker:docker-matlab-25.01.02
-python3 -m pip install .
+uv sync
 presurfer-box --check
 ```
 
@@ -40,7 +40,7 @@ presurfer-box --check
 singularity pull --name spm.sif \
   oras://ghcr.io/spm/spm-docker:singularity-matlab-25.01.02
 
-python3 -m pip install .
+uv sync
 presurfer-box --sif spm.sif --check
 ```
 
@@ -68,14 +68,20 @@ presurfer-box --sif spm.sif stripmask INV2.nii
 
 Docker is the default runtime. Override its image with `--image IMAGE`.
 
-Existing workflow output directories are protected by default. To replace one,
-pass `--clobber` before the command:
+Each run writes to a new UTC timestamped directory beside its input, for
+example `250101T12:34:56_presurfer/presurf_INV2/`. Same-second runs receive a
+numeric suffix. MPRAGEise's intermediate bias-correction directory begins
+with `tmp_` and is removed after processing.
+
+## Development
 
 ```bash
-presurfer-box --clobber stripmask INV2.nii
+uv sync
+uv run ruff format --check
+uv run ruff check
+uv run mypy .
+uv run pytest
 ```
-
-This removes and recreates that workflow's `presurf_*` output directory.
 
 ## Choose a workflow
 

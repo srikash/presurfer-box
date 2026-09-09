@@ -1,6 +1,6 @@
 """MATLAB-free presurfer modules backed by SPM Standalone in Docker."""
 
-from scripts.presurfer_box import (
+from presurfer.public_api import (
     IMAGE,
     SINGULARITY_IMAGE,
     spm_biascorrect,
@@ -9,4 +9,11 @@ from scripts.presurfer_box import (
     spm_stripmask,
 )
 
-__all__ = ["IMAGE", "SINGULARITY_IMAGE", "spm_biascorrect", "spm_mprageise", "spm_seg", "spm_stripmask"]
+__all__ = [
+    "IMAGE",
+    "SINGULARITY_IMAGE",
+    "spm_biascorrect",
+    "spm_mprageise",
+    "spm_seg",
+    "spm_stripmask",
+]

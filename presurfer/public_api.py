@@ -1,7 +1,6 @@
-"""Backward-compatible import and executable shim for presurfer-box."""
+"""Stable public API for presurfer preprocessing workflows."""
 
-from presurfer.command_line import main
-from presurfer.public_api import (
+from presurfer.preprocessing_workflows import (
     IMAGE,
     SINGULARITY_IMAGE,
     spm_biascorrect,
@@ -13,13 +12,8 @@ from presurfer.public_api import (
 __all__ = [
     "IMAGE",
     "SINGULARITY_IMAGE",
-    "main",
     "spm_biascorrect",
     "spm_mprageise",
     "spm_seg",
     "spm_stripmask",
 ]
-
-
-if __name__ == "__main__":
-    main()
