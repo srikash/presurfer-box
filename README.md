@@ -3,9 +3,10 @@
 MATLAB-free MP2RAGE preprocessing using SPM Standalone in Docker,
 Singularity, or Apptainer.
 
-`presurfer-box` provides presurfer workflows without requiring a local MATLAB
-installation or MATLAB license. It uses the [official SPM Standalone container](https://github.com/spm/spm-docker)
-and retains the original MATLAB implementation as a Git submodule.
+`presurfer-box` runs presurfer workflows in the
+[official SPM Standalone container](https://github.com/spm/spm-docker), so it
+does not need a local MATLAB installation or licence. The original MATLAB
+implementation remains available as a Git submodule.
 
 > **Status:** This implementation uses SPM25 Standalone. Results have not yet
 > been numerically validated against the historical SPM12/MATLAB pipeline.
@@ -19,8 +20,8 @@ git clone https://github.com/srikash/presurfer-box.git
 cd presurfer-box
 ```
 
-The legacy MATLAB source is optional. Fetch its pinned submodule only if you
-need to inspect or run the historical implementation:
+Fetch the pinned legacy MATLAB submodule only when you need to inspect or run
+the historical implementation:
 
 ```bash
 git submodule update --init --recursive
@@ -66,7 +67,7 @@ Use a local Singularity or Apptainer image with `--sif`:
 presurfer-box --sif spm.sif stripmask INV2.nii
 ```
 
-Docker is the default runtime. Override its image with `--image IMAGE`.
+Docker is the default runtime. Use `--image IMAGE` to select another image.
 
 Each run writes to a new UTC timestamped directory beside its input, for
 example `250101T12:34:56_presurfer/presurf_INV2/`. Same-second runs receive a
@@ -111,17 +112,18 @@ All functions accept `image=` and `runtime=` keywords. Use
 
 ## Outputs
 
-Each workflow creates an output directory beside its input:
+Each workflow writes its output beneath a timestamped run directory beside the
+input:
 
 ```text
-presurf_biascorrect/
-presurf_MPRAGEise/
-presurf_INV2/
-presurf_UNI/
+YYMMDDThh:mm:ss_presurfer/presurf_biascorrect/
+YYMMDDThh:mm:ss_presurfer/presurf_MPRAGEise/
+YYMMDDThh:mm:ss_presurfer/presurf_INV2/
+YYMMDDThh:mm:ss_presurfer/presurf_UNI/
 ```
 
-Compressed `.nii.gz` inputs are supported. The source file is preserved; the
-workflow creates an uncompressed working copy in its output directory.
+Compressed `.nii.gz` inputs are supported. The source file stays unchanged and
+the workflow creates an uncompressed working copy in the output directory.
 
 ## Legacy MATLAB implementation
 
@@ -139,8 +141,7 @@ For MATLAB use:
 addpath('src/matlab/presurfer/func')
 ```
 
-Update the submodule only when intentionally adopting a newer original
-presurfer commit.
+Update the submodule only when adopting a newer presurfer commit deliberately.
 
 ## Reproducibility and validation
 

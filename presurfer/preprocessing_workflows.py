@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Run presurfer preprocessing with SPM Standalone containers.
+"""Presurfer preprocessing through SPM Standalone containers.
 
-The public API provides separate bias-correction, MPRAGEise, strip-mask, and
-UNI segmentation workflows. SPM work runs in Docker or Singularity/Apptainer;
-host-side Python handles file preparation and the MPRAGEise multiplication.
+The module provides bias correction, MPRAGEise, strip-mask, and UNI
+segmentation workflows. SPM runs in Docker or Singularity/Apptainer; Python
+prepares files on the host and calculates MPRAGEise.
 
 Note:
     The default runtime uses SPM25 Standalone. Results have not yet been
@@ -555,7 +555,7 @@ def mprageise(
         report_stage(reporter, "Removed temporary bias-correction stage", started)
 
 
-# Public Python API. Hyphens are not valid in Python identifiers.
+# Python identifiers cannot contain hyphens.
 def spm_biascorrect(
     input_file: str | Path,
     *,
