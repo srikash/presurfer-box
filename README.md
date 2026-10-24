@@ -1,4 +1,4 @@
-# presurfer-box [![Version](https://img.shields.io/badge/version-2.4.10-purple.svg)](https://github.com/srikash/presurfer-box/releases/tag/v2.4.10) [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE) [![CI](https://github.com/srikash/presurfer-box/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/srikash/presurfer-box/actions/workflows/ci.yml) [![DOI](https://zenodo.org/badge/1350566808.svg)](https://doi.org/10.5281/zenodo.22163094)
+# presurfer-box [![Version](https://img.shields.io/badge/version-2.4.11-purple.svg)](https://github.com/srikash/presurfer-box/releases/tag/v2.4.11) [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE) [![CI](https://github.com/srikash/presurfer-box/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/srikash/presurfer-box/actions/workflows/ci.yml) [![DOI](https://zenodo.org/badge/1350566808.svg)](https://doi.org/10.5281/zenodo.22163094)
 
 MATLAB-free MP2RAGE preprocessing for [presurfer](https://github.com/srikash/presurfer),
 using SPM Standalone in a Docker or Apptainer container.
