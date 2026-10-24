@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- The FreeSurfer example in the README now shows the `recon-all -xmask` command
+  in place of the `fslmaths` stripping step. It explains why `-noskullstrip`
+  fails with `could not open mask volume brainmask.mgz`, and says to inspect the
+  strip mask first on 7T data (#4).
+
 ## [2.4.11] - 2026-10-24
 
 ### Fixed

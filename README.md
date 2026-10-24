@@ -329,14 +329,29 @@ The brain mask, from the MPRAGEised UNI:
 
 <img src="https://raw.githubusercontent.com/srikash/TheBeesKnees/main/imgs/presurf_UNI_output.png" width="400" alt="Brain mask from the MPRAGEised UNI">
 
-Then use the strip mask to remove the non-brain parts of the MPRAGEised UNI, and
-run `recon-all` on the stripped image:
+Before you run FreeSurfer, open `INV2_stripmask.nii` over the MPRAGEised UNI.
+With 7T data, check once which ROIs need cleaning up, such as vessels or dura
+next to the visual cortex. Fix those on a copy of the mask, keeping the same
+voxel grid (a short ITK-SNAP tutorial will be linked here soon), then pass the
+edited mask to `recon-all` with `-xmask`:
 
 ```bash
 RUN=YYMMDDThh:mm:ss_presurfer
-fslmaths $RUN/presurf_MPRAGEise/UNI_MPRAGEised.nii \
-  -mul $RUN/presurf_INV2/INV2_stripmask.nii MPRAGEised_stripped.nii
+cp $RUN/presurf_INV2/INV2_stripmask.nii INV2_stripmask_edited.nii
+# clean INV2_stripmask_edited.nii in ITK-SNAP (or another viewer), then:
+recon-all -hires -all -s sub-01 \
+  -i $RUN/presurf_MPRAGEise/UNI_MPRAGEised.nii \
+  -xmask INV2_stripmask_edited.nii
 ```
+
+`-i` is the unstripped MPRAGEised UNI. Keep the edited mask on the same grid as
+the UNI, because `recon-all` aligns it using the header. `-xmask` replaces
+FreeSurfer's own skull strip with your mask. Don't add `-noskullstrip`: it skips
+the step that creates `brainmask.mgz`, and `recon-all` later stops with
+`could not open mask volume brainmask.mgz`.
+
+presurfer-box does not write a stripped image, because the mask should be
+checked before it is applied.
 
 Here is a fully automated segmentation with presurfer and FreeSurfer, including
 laminar surfaces:
@@ -358,6 +373,9 @@ presurfer brainmask UNI_MPRAGEised.nii  # brain mask from the MPRAGEised UNI
 
 The step-by-step route needs three SPM segmentations instead of two, because
 `MPRAGEise` runs its own bias correction.
+
+Then continue with the `recon-all -xmask` command above, using the paths from
+your own run directories.
 
 To run only the SPM bias correction, use `presurfer biascorrect`.
 
