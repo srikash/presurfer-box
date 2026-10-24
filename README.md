@@ -20,7 +20,7 @@ Python prepares the files and runs the container for you.
 - [Choosing a workflow](#choosing-a-workflow)
 - [Python API](#python-api)
 - [Outputs](#outputs)
-- [Example](#example)
+- [Usage Example](#example)
 - [Legacy MATLAB implementation](#legacy-matlab-implementation)
 - [Reproducibility and validation](#reproducibility-and-validation)
 - [Licence](#licence)
@@ -328,6 +328,8 @@ The MPRAGEised UNI. [MPRAGEising is better than background removal ('denoising')
 The brain mask, from the MPRAGEised UNI:
 
 <img src="https://raw.githubusercontent.com/srikash/TheBeesKnees/main/imgs/presurf_UNI_output.png" width="400" alt="Brain mask from the MPRAGEised UNI">
+
+#### <ins> Note for use with FreeSurfer </ins>
 
 Before you run FreeSurfer, open `INV2_stripmask.nii` over the MPRAGEised UNI.
 With 7T data, check once which ROIs need cleaning up, such as vessels or dura
