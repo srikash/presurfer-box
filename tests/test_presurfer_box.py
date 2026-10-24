@@ -584,6 +584,34 @@ def test_check_matching_grids_rejects_different_affines(tmp_path: Path) -> None:
         check_matching_grids(tmp_path / "a.nii", tmp_path / "b.nii")
 
 
+def test_affine_noise_below_tolerance_is_accepted(tmp_path: Path) -> None:
+    data = np.ones((2, 2, 2))
+    exact = np.array(
+        [[0, 0, 0.7, -89.4], [-0.7, 0, 0, 121.15], [0, 0.7, 0, -121.36], [0, 0, 0, 1]]
+    )
+    noisy = exact.copy()
+    noisy[:3][exact[:3] == 0] = 1e-6  # converter noise where an exact rotation has 0
+    nib.save(nib.Nifti1Image(data, exact), str(tmp_path / "inv2.nii"))
+    nib.save(nib.Nifti1Image(data, noisy), str(tmp_path / "uni.nii"))
+    check_matching_grids(tmp_path / "inv2.nii", tmp_path / "uni.nii")
+    output = combine_mprageise(
+        tmp_path / "inv2.nii", tmp_path / "uni.nii", tmp_path / "out.nii"
+    )
+    assert output.exists()
+
+
+def test_affine_shift_above_tolerance_is_rejected(tmp_path: Path) -> None:
+    data = np.ones((2, 2, 2))
+    shifted = np.eye(4)
+    shifted[0, 3] = 0.01  # 10 micron translation is a different grid
+    nib.save(nib.Nifti1Image(data, np.eye(4)), str(tmp_path / "a.nii"))
+    nib.save(nib.Nifti1Image(data, shifted), str(tmp_path / "b.nii"))
+    with pytest.raises(RuntimeError, match="matching spatial affines"):
+        check_matching_grids(tmp_path / "a.nii", tmp_path / "b.nii")
+    with pytest.raises(RuntimeError, match="matching spatial affines"):
+        combine_mprageise(tmp_path / "a.nii", tmp_path / "b.nii", tmp_path / "o.nii")
+
+
 def test_pull_sif(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
     monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/apptainer")

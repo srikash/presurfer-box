@@ -37,6 +37,16 @@ def mprageise_array(inv2: np.ndarray, uni: np.ndarray) -> np.ndarray:
     return result
 
 
+AFFINE_ATOL = 1e-4
+"""Absolute tolerance for comparing affines. Converters such as dcm2niix leave ~1e-6 in
+place of an exact 0 on axis-aligned grids, which ``np.allclose``'s default ``atol``
+(1e-8) rejects against a 0. 1e-4 is below 0.04 mm over a 320-voxel field of view."""
+
+
+def _affines_match(first: np.ndarray, second: np.ndarray) -> bool:
+    return bool(np.allclose(first, second, rtol=1e-5, atol=AFFINE_ATOL))
+
+
 def check_matching_grids(inv2: Path, uni: Path) -> None:
     """Check that two images share a voxel grid, reading only their headers.
 
@@ -54,7 +64,7 @@ def check_matching_grids(inv2: Path, uni: Path) -> None:
     uni_img = cast("nib.Nifti1Image", nib.load(str(uni)))
     if inv2_img.shape != uni_img.shape:
         raise RuntimeError("INV2 and UNI images must have matching dimensions.")
-    if not np.allclose(inv2_img.affine, uni_img.affine):
+    if not _affines_match(inv2_img.affine, uni_img.affine):
         raise RuntimeError("INV2 and UNI images must have matching spatial affines.")
 
 
@@ -81,7 +91,7 @@ def combine_mprageise(inv2_biascorrected: Path, uni: Path, output: Path) -> Path
     inv2_data = inv2_img.get_fdata(dtype=np.float64)
     if uni_data.shape != inv2_data.shape:
         raise RuntimeError("INV2 and UNI images must have matching dimensions.")
-    if not np.allclose(uni_img.affine, inv2_img.affine):
+    if not _affines_match(uni_img.affine, inv2_img.affine):
         raise RuntimeError("INV2 and UNI images must have matching spatial affines.")
     if not np.isfinite(inv2_data).any():
         raise RuntimeError("Bias-corrected INV2 contains no finite voxel values.")

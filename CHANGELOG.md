@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The INV2/UNI affine check now allows an absolute difference of 1e-4 (it used
+  `np.allclose`'s default 1e-8). Images from dcm2niix carry ~1e-6 where an
+  axis-aligned grid has an exact 0. MPRAGEise passed the check on such inputs,
+  then failed after segmentation, when `combine_mprageise` compared the
+  bias-corrected INV2 with UNI: "INV2 and UNI images must have matching spatial
+  affines."
+
 ## [2.4.10] - 2026-10-13
 
 ### Changed
